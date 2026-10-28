@@ -27,7 +27,7 @@ Emergency messages are forced to high priority even if the model under-rates the
 Model names change over time; override with `--model` if a default is retired.
 
 ## Try it in the browser (no install)
-Open `index.html` (or the live link: **`https://YOUR-USERNAME.github.io/clinic-triage/`**).
+Open `index.html` (or the live link: **https://rohanvinod9999.github.io/clinic-triage/**).
 1. It loads sample data automatically. Click **Run triage** to see categories, priorities and draft replies.
 2. Engine **Rules** needs no key. To try **AI** mode, choose Gemini or OpenAI and paste your own API key
    (a free Gemini key is available from Google AI Studio). The key stays in your browser's memory only.

@@ -1,0 +1,11 @@
+id,source,received,patient_name,message
+1,web_form,2026-10-19,Priya S.,"Hi, I'd like to book a check-up with Dr Nair next week. Do you have any mornings free?"
+2,google_review,2026-10-19,Tom B.,"Waited 55 minutes past my appointment time and nobody told us why. Very disappointing."
+3,email,2026-10-20,Ana L.,"I was charged twice for my last visit. Can you please fix this and refund me?"
+4,google_review,2026-10-20,Ravi K.,"Dr Lee was wonderful, so patient and clear. Thank you to the lovely front desk team too!"
+5,web_form,2026-10-21,Mei C.,"Do you offer telehealth appointments? I live 2 hours away."
+6,email,2026-10-21,Sam W.,"I have had chest pain since last night, can I get an appointment today?"
+7,phone_note,2026-10-22,Fatima H.,"Need to reschedule Thursday 10am appointment to next week please."
+8,google_review,2026-10-22,Jo P.,"Parking is a nightmare and the reception was rude when I asked about my results."
+9,web_form,2026-10-23,Luis M.,"What are your opening hours on weekends and do you bulk bill?"
+10,email,2026-10-23,Anita D.,"The invoice I received has the wrong Medicare number. Please correct it."

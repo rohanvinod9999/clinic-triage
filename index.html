@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clinic Enquiry & Review Triage</title>
+<style>
+:root{--bg:#f5f7f8;--card:#fff;--text:#1d2b32;--muted:#5d6f78;--accent:#0f7b8a;--on:#fff;--line:#d9e3e6;--hi:#c0392b;--med:#b9770e;--lo:#1e8449;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a1e;--card:#172429;--text:#e6eef1;--muted:#9bb0b8;--accent:#3fb6c6;--on:#06161a;--line:#2a3d44;--hi:#ff7b6b;--med:#e8b04a;--lo:#5fd08a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1a1e;--card:#172429;--text:#e6eef1;--muted:#9bb0b8;--accent:#3fb6c6;--on:#06161a;--line:#2a3d44;--hi:#ff7b6b;--med:#e8b04a;--lo:#5fd08a;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 48px}h1{margin:0 0 4px;font-size:1.6rem}h2{font-size:1.1rem;margin:0 0 8px}
+.sub,.note{color:var(--muted)}.note{font-size:.82rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+textarea{width:100%;min-height:130px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:.82rem ui-monospace,Menlo,Consolas,monospace}
+button,.btn{background:var(--accent);color:var(--on);border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer}
+button.sec,.btn.sec{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg)}.stat b{font-size:1.4rem;display:block}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:760px;font-size:.88rem}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;border:1px solid currentColor;font-size:.78rem;font-weight:600}
+.high{color:var(--hi)}.medium{color:var(--med)}.low{color:var(--lo)}
+.alert{border-left:4px solid var(--hi);padding:8px 12px;background:var(--bg);margin:6px 0;border-radius:6px}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+label{display:block;font-size:.82rem;font-weight:600;margin:0 0 4px}
+select,input[type=password],input:not([type]){width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit}
+.eng{font-size:.72rem;color:var(--muted)}
+.err{color:var(--hi);font-size:.9rem;margin-top:8px}
+</style></head><body><main>
+<h1>Clinic Enquiry & Review Triage</h1>
+<p class="sub">Paste or upload patient enquiries and reviews. Get categories, priorities, draft replies for staff approval, and a weekly report.</p>
+
+<div class="card">
+<h2>1. Input (CSV: id, source, received, patient_name, message)</h2>
+<textarea id="csv" aria-label="CSV input"></textarea>
+<div class="ctl">
+<div><label for="prov">Engine</label><select id="prov"><option value="rules">Rules (no key, instant)</option><option value="gemini">AI: Google Gemini (free key)</option><option value="openai">AI: OpenAI</option></select></div>
+<div><label for="key">API key (AI modes only)</label><input id="key" type="password" autocomplete="off" placeholder="Paste your own key"></div>
+<div><label for="model">Model (optional)</label><input id="model" placeholder="gemini-2.0-flash / gpt-4o-mini"></div>
+</div>
+<div class="actions">
+<button id="run">Run triage</button>
+<button class="sec" id="sample">Load sample data</button>
+<label class="btn sec" for="file">Upload CSV</label><input type="file" id="file" accept=".csv,text/csv" hidden>
+</div>
+<div id="err" class="err"></div>
+<p class="note">Rules mode runs entirely in your browser. AI mode sends only the message text to the provider you choose, using your own key, which is kept in memory only and never stored. Do not use real patient data. Use made-up or de-identified data only. Draft replies always need staff approval.</p>
+</div>
+
+<div id="results" hidden>
+<div class="card"><h2>2. Summary</h2><div class="stats" id="stats"></div><div id="urgent" style="margin-top:12px"></div></div>
+<div class="card"><h2>3. Triaged messages</h2>
+<div class="actions" style="margin:0 0 10px"><button class="sec" id="dlcsv">Download results CSV</button><button class="sec" id="dlrep">Download weekly report</button></div>
+<div class="wrap"><table><thead><tr><th>#</th><th>From</th><th>Message</th><th>Category</th><th>Priority</th><th>Draft reply</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+</div>
+
+<script>
+const SAMPLE=`id,source,received,patient_name,message
+1,web_form,2026-10-19,Priya S.,"Hi, I'd like to book a check-up with Dr Nair next week. Do you have any mornings free?"
+2,google_review,2026-10-19,Tom B.,"Waited 55 minutes past my appointment time and nobody told us why. Very disappointing."
+3,email,2026-10-20,Ana L.,"I was charged twice for my last visit. Can you please fix this and refund me?"
+4,google_review,2026-10-20,Ravi K.,"Dr Lee was wonderful, so patient and clear. Thank you to the lovely front desk team too!"
+5,web_form,2026-10-21,Mei C.,"Do you offer telehealth appointments? I live 2 hours away."
+6,email,2026-10-21,Sam W.,"I have had chest pain since last night, can I get an appointment today?"
+7,phone_note,2026-10-22,Fatima H.,"Need to reschedule Thursday 10am appointment to next week please."
+8,google_review,2026-10-22,Jo P.,"Parking is a nightmare and the reception was rude when I asked about my results."
+9,web_form,2026-10-23,Luis M.,"What are your opening hours on weekends and do you bulk bill?"
+10,email,2026-10-23,Anita D.,"The invoice I received has the wrong Medicare number. Please correct it."`;
+const RULES=[["urgent_clinical",/chest pain|can'?t breathe|trouble breathing|severe bleeding|unconscious|suicid/],
+["complaint",/wait|rude|disappoint|nightmare|terrible|awful|unhappy/],
+["billing",/charged|invoice|refund|billed|billing|medicare number|payment/],
+["general_info",/telehealth|opening hours|do you offer|bulk bill/],
+["booking",/book|appointment|reschedul|cancel|available|free\b/],
+["praise",/wonderful|thank|great|excellent|amazing|lovely/]];
+const REPLIES={urgent_clinical:"Thank you for contacting us. If you are experiencing chest pain or another emergency symptom, please call 000 or go to your nearest emergency department now. Please do not wait for an appointment.",
+billing:"Thank you for letting us know. Our accounts team will review this and get back to you. You can also call the clinic to speak with them directly.",
+booking:"Thanks for getting in touch. Our reception team will check availability and confirm a time with you shortly.",
+complaint:"Thank you for your feedback, and we are sorry your experience fell short. Please call the clinic so a manager can look into this properly.",
+praise:"Thank you so much for the kind words. We have shared them with the team and look forward to seeing you again.",
+general_info:"Thanks for your enquiry. A member of our team will reply with the details you asked about."};
+const $=id=>document.getElementById(id);let rows=[];
+const SYSTEM_PROMPT=`You triage messages sent to a medical clinic (enquiries and online reviews).
+Return ONLY a JSON object with these keys:
+  category: one of booking, billing, complaint, praise, general_info, urgent_clinical
+  sentiment: positive | neutral | negative
+  priority: high | medium | low
+  summary: max 15 words
+  draft_reply: a polite reply of 2-4 sentences from the clinic team
+Rules:
+- If the message mentions symptoms that could be an emergency (chest pain, breathing trouble, severe bleeding), set category=urgent_clinical, priority=high, and the draft_reply must tell them to call emergency services (000 in Australia) or go to the nearest emergency department. Do not give other medical advice.
+- Never diagnose, never promise refunds or outcomes, never invent clinic policies, hours or prices.
+- For reviews, thank the person, apologise for the experience if negative, and invite them to call the clinic.
+- Do not include markdown or any text outside the JSON.`;
+const CATS=RULES.map(r=>r[0]);
+async function callLLM(prov,key,model,msg){
+ if(prov=="gemini"){const m=model||"gemini-2.0-flash";
+  const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({system_instruction:{parts:[{text:SYSTEM_PROMPT}]},contents:[{role:"user",parts:[{text:msg}]}],generationConfig:{responseMimeType:"application/json"}})});
+  if(!r.ok)throw new Error("HTTP "+r.status);const d=await r.json();return d.candidates[0].content.parts[0].text}
+ const m=model||"gpt-4o-mini";
+ const r=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},body:JSON.stringify({model:m,response_format:{type:"json_object"},messages:[{role:"system",content:SYSTEM_PROMPT},{role:"user",content:msg}]})});
+ if(!r.ok)throw new Error("HTTP "+r.status);const d=await r.json();return d.choices[0].message.content}
+async function aiClassify(prov,key,model,msg){
+ const raw=(await callLLM(prov,key,model,msg)).trim().replace(/^```(?:json)?|```$/gm,"").trim();
+ const d=JSON.parse(raw);if(!CATS.includes(d.category))throw new Error("bad category");
+ if(d.category=="urgent_clinical")d.priority="high";
+ return{category:d.category,sentiment:d.sentiment||"neutral",priority:["high","medium","low"].includes(d.priority)?d.priority:"medium",summary:String(d.summary||msg.slice(0,80)),draft_reply:String(d.draft_reply||REPLIES[d.category]),engine:"ai:"+prov}}
+function parseCSV(t){const out=[];let r=[],f="",q=false;
+ for(let i=0;i<t.length;i++){const c=t[i];
+  if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c=='"')q=true;else if(c==","){r.push(f);f=""}
+  else if(c=="\n"||c=="\r"){if(c=="\r"&&t[i+1]=="\n")i++;r.push(f);f="";if(r.some(x=>x.trim()))out.push(r);r=[]}
+  else f+=c}
+ if(f||r.length){r.push(f);if(r.some(x=>x.trim()))out.push(r)}return out}
+function classify(m){const t=m.toLowerCase();const cat=(RULES.find(([,rx])=>rx.test(t))||["general_info"])[0];
+ const sentiment={praise:"positive",complaint:"negative",urgent_clinical:"negative"}[cat]||"neutral";
+ const priority=cat=="urgent_clinical"?"high":(cat=="billing"||cat=="complaint")?"medium":"low";
+ return{category:cat,sentiment,priority,summary:m.slice(0,80).trim(),draft_reply:REPLIES[cat],engine:"rules"}}
+let busy=false;
+async function run(){if(busy)return;$("err").textContent="";
+ const data=parseCSV($("csv").value);
+ if(data.length<2){$("err").textContent="Add a header row and at least one message.";return}
+ const h=data[0].map(x=>x.trim().toLowerCase());const need=["id","source","received","patient_name","message"];
+ const miss=need.filter(n=>!h.includes(n));if(miss.length){$("err").textContent="Missing columns: "+miss.join(", ");return}
+ const items=data.slice(1).map(r=>{const o={};h.forEach((k,i)=>o[k]=(r[i]||"").trim());return o}).filter(o=>o.message);
+ if(!items.length){$("err").textContent="No messages found.";return}
+ const prov=$("prov").value,key=$("key").value.trim(),model=$("model").value.trim();
+ if(prov!="rules"&&!key){$("err").textContent="Paste an API key for AI mode, or switch to Rules.";return}
+ busy=true;$("run").disabled=true;let fails=0;rows=[];
+ for(let i=0;i<items.length;i++){
+  if(prov!="rules")$("run").textContent="Working "+(i+1)+"/"+items.length+"...";
+  let res;
+  if(prov!="rules"){try{res=await aiClassify(prov,key,model,items[i].message)}catch(e){fails++;res=classify(items[i].message)}}
+  else res=classify(items[i].message);
+  rows.push({...items[i],...res})}
+ busy=false;$("run").disabled=false;$("run").textContent="Run triage";
+ if(fails)$("err").textContent=fails+" message(s) used rules because the AI call failed (check key, model name or network).";
+ render()}
+function render(){$("results").hidden=false;
+ const cnt={};rows.forEach(r=>cnt[r.category]=(cnt[r.category]||0)+1);
+ const st=$("stats");st.innerHTML="";
+ const add=(n,l)=>{const d=document.createElement("div");d.className="stat";const b=document.createElement("b");b.textContent=n;d.append(b,l);st.append(d)};
+ add(rows.length,"Total messages");add(rows.filter(r=>r.priority=="high").length,"Need attention now");
+ add(rows.filter(r=>r.sentiment=="negative").length,"Negative sentiment");
+ Object.entries(cnt).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>add(v,k.replace("_"," ")));
+ const u=$("urgent");u.innerHTML="";
+ rows.filter(r=>r.priority=="high").forEach(r=>{const d=document.createElement("div");d.className="alert";d.textContent="⚠ #"+r.id+" "+r.patient_name+": "+r.summary;u.append(d)});
+ const tb=$("rows");tb.innerHTML="";
+ rows.forEach(r=>{const tr=document.createElement("tr");
+  [r.id,r.patient_name+" ("+r.source+")",r.message].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td)});
+  let td=document.createElement("td");td.textContent=r.category.replace("_"," ");const en=document.createElement("div");en.className="eng";en.textContent=r.engine;td.append(en);tr.append(td);
+  td=document.createElement("td");const p=document.createElement("span");p.className="pill "+r.priority;p.textContent=r.priority;td.append(p);tr.append(td);
+  td=document.createElement("td");const ta=document.createElement("textarea");ta.style.minHeight="90px";ta.value=r.draft_reply;ta.oninput=()=>r.draft_reply=ta.value;td.append(ta);tr.append(td);
+  tb.append(tr)})}
+function dl(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
+const esc=s=>'"'+String(s).replace(/"/g,'""')+'"';
+$("dlcsv").onclick=()=>{const cols=["id","source","received","patient_name","message","category","sentiment","priority","summary","draft_reply","engine"];
+ dl("triaged_results.csv",cols.join(",")+"\n"+rows.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n"),"text/csv")};
+$("dlrep").onclick=()=>{const cnt={},sent={};rows.forEach(r=>{cnt[r.category]=(cnt[r.category]||0)+1;sent[r.sentiment]=(sent[r.sentiment]||0)+1});
+ const hi=rows.filter(r=>r.priority=="high"),neg=rows.filter(r=>r.sentiment=="negative"&&r.source=="google_review");
+ const L=["# Weekly Enquiry & Review Report","","Total messages: **"+rows.length+"**","","## By category",...Object.entries(cnt).map(([k,v])=>"- "+k+": "+v),"","## Sentiment",...Object.entries(sent).map(([k,v])=>"- "+k+": "+v),"","## Needs human attention now",...(hi.length?hi.map(r=>"- #"+r.id+" ("+r.category+"): "+r.summary):["- None"]),"","## Negative public reviews to follow up",...(neg.length?neg.map(r=>"- #"+r.id+" "+r.patient_name+": "+r.summary):["- None"]),"","_All draft replies require staff approval before sending._"];
+ dl("weekly_report.md",L.join("\n")+"\n","text/markdown")};
+$("run").onclick=run;$("sample").onclick=()=>{$("csv").value=SAMPLE;run()};
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$("csv").value=rd.result;run()};rd.readAsText(f)};
+$("csv").value=SAMPLE;run();
+</script></main></body></html>
